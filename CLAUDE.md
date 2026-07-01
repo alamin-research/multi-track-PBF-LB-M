@@ -76,7 +76,7 @@ Two build products:
 
 Plus the **`setSolidFraction`** utility (`applications/utilities/`) — initialises
 `alpha.metal` from a `locations` file of particle/baseplate positions + radii
-(such as those produced by the LIGGGHTS DEM code) before the solver runs.
+before the solver runs.
 
 ### NIST-specific solver modifications
 
@@ -101,5 +101,4 @@ Tutorial cases follow OpenFOAM structure with a couple of local conventions:
 `PowderSim`, and `timeVsLaserPosition`/`timeVsLaserPower` table refs),
 `trackProperties` (`trackDuration`), and phase `physicalProperties.{metal,gas}`;
 `system/` holds `bedPlateDict` (baseplate bounding box for `setSolidFraction`)
-and `setFieldsDict`. `DEM_small/` (in `ch_1x5`) holds the LIGGGHTS input for
-generating the powder bed.
+and `setFieldsDict`.

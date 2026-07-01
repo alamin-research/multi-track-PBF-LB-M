@@ -95,6 +95,41 @@ git clone https://github.com/alamin-research/multi-track-PBF-LB-M.git
 cd multi-track-PBF-LB-M
 ```
 
+### Step 1 — Install OpenMPI 5.0.7
+
+All simulations in the paper were run and **tested with OpenMPI 5.0.7**. Install
+it *before* building the solver so OpenFOAM links against the same MPI, and
+because the tutorial `Allrun` / `job.sh` scripts expect it at
+`~/opt/openmpi-5.0.7`. Build it from source:
+
+```bash
+cd /tmp
+wget https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.7.tar.gz
+tar xf openmpi-5.0.7.tar.gz
+cd openmpi-5.0.7
+./configure --prefix=$HOME/opt/openmpi-5.0.7
+make -j$(nproc)
+make install
+```
+
+Then add it to your environment (append to `~/.bashrc`, and `source ~/.bashrc`):
+
+```bash
+export PATH="$HOME/opt/openmpi-5.0.7/bin:$PATH"
+export LD_LIBRARY_PATH="$HOME/opt/openmpi-5.0.7/lib:$LD_LIBRARY_PATH"
+```
+
+Check it works — this should report `5.0.7`:
+
+```bash
+mpirun --version
+```
+
+> **Container routes (B / C):** the OpenFOAM image already bundles an MPI, so this
+> local build is mainly for the native route and to satisfy the MPI paths
+> hard-coded in the tutorial run scripts. Adjust those paths if you rely on the
+> container's MPI instead.
+
 ### Option A — Native OpenFOAM-10
 
 1. **Install OpenFOAM-10** if you don't have it, following the official Ubuntu
@@ -216,30 +251,6 @@ done. If it says "not found", make sure you sourced the OpenFOAM environment
 Compiled programs install to `$FOAM_USER_APPBIN`; libraries to
 `$FOAM_USER_LIBBIN` / `$FOAM_LIBBIN`.
 
-### Optional — LIGGGHTS® (DEM) for powder beds
-
-The powder-bed tutorial can regenerate its powder layer with the
-[LIGGGHTS®](https://github.com/CFDEMproject/LIGGGHTS-PUBLIC) discrete element
-solver. It is only needed if you want to rebuild the powder bed — the case ships
-with a pre-generated one.
-
-```bash
-# Linux
-sudo apt update
-sudo apt install -y build-essential cmake gfortran git \
-  libfftw3-dev libjpeg-dev libpng-dev libvtk6-dev libopenmpi-dev openmpi-bin
-
-git clone https://github.com/CFDEMproject/LIGGGHTS-PUBLIC.git
-cd LIGGGHTS-PUBLIC/src
-make auto            # produces the `liggghts` executable
-```
-
-Add `liggghts` to your `PATH` (e.g. in `~/.bashrc`):
-
-```bash
-export PATH="$HOME/LIGGGHTS-PUBLIC/src:$PATH"
-```
-
 ## Tutorial cases
 
 Two representative cases live under `tutorials/`, one for each NIST AM-Bench pad
@@ -263,8 +274,8 @@ are obtained by changing the powder layer in the case setup.
 
 - Domain 1.84 × 1.14 × 0.6 mm, mesh 184 × 114 × 60 (~1.26 M cells, 10 µm).
 - 15 serpentine tracks, end time 24.375 ms.
-- The powder layer is generated with LIGGGHTS in `DEM_small/` and seeded into
-  `alpha.metal` by `setSolidFraction` from `constant/location`.
+- The powder layer and baseplate are seeded into `alpha.metal` by
+  `setSolidFraction` from `constant/location`.
 
 ### Running a case
 
@@ -284,13 +295,6 @@ with the laser), `decomposePar`, the parallel solve, `reconstructPar`, and
 > OpenFOAM-10 path and `mpirun -np 80`. Edit the MPI/OpenFOAM paths and the core
 > count near the top/bottom of each `Allrun` to match your machine before
 > running.
-
-To (optionally) regenerate the `ch_1x5` powder bed first:
-
-```bash
-cd tutorials/ch_1x5/DEM_small
-./Allrun        # runs liggghts, copies post/location to ../constant/
-```
 
 ### Running on an HPC cluster (SLURM)
 
@@ -379,10 +383,6 @@ Please also cite the upstream `laserbeamFoam` solver:
 - Deisenroth, D., Mekhontsev, S., & Grantham, S. (2025). *Design and Calibration
   of the Fundamentals of Laser-Material Interaction (FLaMI) Powder Bed Fusion
   Testbed at NIST.* NIST AMS 100-66. https://doi.org/10.6028/NIST.AMS.100-66
-- Kloss, C., Goniva, C., Hager, A., Amberger, S., & Pirker, S. (2012). *Models,
-  algorithms and validation for opensource DEM and CFD–DEM.* Progress in
-  Computational Fluid Dynamics, 12(2/3), 140–152.
-  https://doi.org/10.1504/PCFD.2012.047457
 
 ## Acknowledgement
 
