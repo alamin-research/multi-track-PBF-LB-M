@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=khorasani_100um
+#SBATCH --job-name=ch_5x5
 #SBATCH --time=144:00:00
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=96

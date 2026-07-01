@@ -1,332 +1,326 @@
-# `laserbeamFoam` solvers
+# LPBF Melt Pool Dynamics — Simulation Code
 
-![alt text](https://github.com/micmog/LaserbeamFoam/blob/main/images/Powder.png?raw=true)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.07359-b31b1b.svg)](https://arxiv.org/abs/2604.07359)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-## Overview
+This repository contains the OpenFOAM-10 solver and simulation cases used in:
 
-Presented here is a growing suite of solvers that describe laser-substrate
- interaction. This repository begins with the `laserbeamFoam` solver. Additional
- solvers are being added incrementally.
+> **Laser Powder Bed Fusion Melt Pool Dynamics for Different Geometric Variations
+> and Powder Layer Heights: High-Fidelity Multiphysics Modeling vs 2025 NIST
+> Experiments**
+> Badhon Kumar, Rakibul Islam Kanak, Nishat Sultana, Jiachen Guo, Andrew
+> Schrader, Wing Kam Liu, Abdullah Al Amin<sup>†</sup>.
+> arXiv:[2604.07359](https://arxiv.org/abs/2604.07359).
+>
+> <sup>†</sup> Corresponding author.
 
-Currently, this repository contains two solvers:
+The code is a fork of the [`laserbeamFoam`](https://github.com/micmog/LaserbeamFoam)
+solver suite, built against **OpenFOAM-10**, extended to reproduce the NIST
+AM-Bench 2025 laser powder bed fusion pad experiments studied in the paper.
 
-### `laserbeamFoam`
+![Melt-track animation: 5 mm pad (top) and 1 mm pad (bottom), 80 µm powder](media/demo.gif)
 
-A volume-of-fluid (VOF) solver for studying high energy density laser-based
-advanced manufacturing processes and laser-substrate interactions. This
-implementation treats the metallic substrate and shielding gas phase as
-in-compressible. The solver fully captures the metallic substrate's
-fusion/melting state transition. For the vapourisation of the substrate, the
-explicit volumetric dilation due to the vapourisation state transition is
-neglected; instead, a phenomenological recoil pressure term is used to capture
-the contribution to the momentum and energy fields due to vaporisation events.
-laserbeamFoam also captures surface tension effects, the temperature dependence
-of surface tension (Marangoni) effects, latent heat effects due to
-melting/fusion (and vapourisation), buoyancy effects due to the thermal
-expansion of the phases using a Boussinesq approximation, and momentum damping
-due to solidification.
-A ray-tracing algorithm is implemented that permits the incident Gaussian laser
-beam to be discretised into several 'Rays' based on the computational grid
-resolution. The 'Rays' of this incident laser beam are then tracked through the
-domain through their multiple reflections, with the energy deposited by each
-ray determined through the Fresnel equations. The solver approach is extended
-from the adiabatic two-phase interFoam code developed by
-[OpenCFD Ltd.](http://openfoam.com/) to include non-isothermal state transition
-physics and ray-tracing heat source application.
+*Top: `ch_5x5` (5 mm × 5 mm pad). Bottom: `ch_1x5` (1 mm × 5 mm pad). Both with an 80 µm powder layer.*
 
-### `multiComponentlaserbeamFoam`
+## What `laserbeamFoam` does
 
-An extension of the laserbeamfoam solver to multi-component metallic
-substrates. This solver can simulate M-Component metallic substrates in the
-presence of gas-phases. Diffusion is treated through a Fickian diffusion model
-with the diffusivity specified through 'diffusion pairs', and the interface
-compression is again specified pair-wise. The miscible phases in the simulation
-should have diffusivity specified between them, and immiscible phase pairs
-should have an interface compression term specified between them (typically 1).
+`laserbeamFoam` is a volume-of-fluid (VOF) solver for high energy density
+laser–material interaction (welding, drilling, powder bed fusion). It treats the
+metallic substrate and the shielding gas as two incompressible phases and
+captures:
 
-Target applications for the solvers included in this repository include:
+- fusion/melting state transition with latent heat,
+- surface tension and its temperature dependence (Marangoni flow),
+- a phenomenological recoil pressure for vaporisation,
+- buoyancy (Boussinesq) and momentum damping in the solidifying mush.
 
-* Dissimilar Laser Welding
-* Dissimilar Laser Drilling
-* Dissimilar Laser Powder Bed Fusion
-* Dissimilar Selective Laser Melting
+The heat source is a **ray-tracing** model: the incident Gaussian beam is
+discretised into rays that are tracked through the domain, depositing energy at
+each surface reflection via the Fresnel equations.
+
+## About this study
+
+The paper studies how **powder layer height** (bare plate, 80 µm, 160 µm) and
+**pad geometry** affect melt pool dynamics in laser powder bed fusion, and
+compares the predicted melt pool metrics (depth, width, solidified and dilution
+areas) against the NIST AM-Bench 2025 experiments.
+
+The cases here target the NIST **CHAL-AMB2025-06-PMPG** challenge (Pad Melt Pool
+Geometry): arrays of overlapping laser tracks ("pads") on IN718, measuring
+per-track bead height, depth, width, overlap, and solidified / dilution areas.
+
+The full NIST pad is 45 tracks over a 5 mm width. **These cases use at most 15
+tracks** — the ray-tracing VOF solver is very expensive, so the reduced pads are
+run on an HPC cluster to keep cost manageable while reproducing the AM-Bench
+process conditions:
+
+| Parameter | Value |
+|---|---|
+| Laser power | 285 W |
+| Scan speed | 960 mm/s |
+| Hatch spacing | 0.11 mm |
+| Beam radius (Gaussian) | 36 µm |
+| Incidence angle | 5° (`V_incident = (0.087 0.996 0)`) |
+| Track turnaround | 0.75 ms |
+| Material | IN718 |
+
+Beyond the upstream solver, this fork adds per-step **melt tracking** fields
+(`condition`, `meltHistory`, `meltTrackID`) and reads a per-track duration from
+`constant/trackProperties`; see [CLAUDE.md](CLAUDE.md) for details.
 
 ## Installation
 
-The current version of the code utilises the
-[OpenFOAM-10 libraries](https://openfoam.org/version/10/). A branch that
-compiles against the older OpenFOAM-6 libraries is provided. The code has been
-developed and tested using an Ubuntu installation but should work on any
-operating system capable of installing OpenFOAM. To install the laserbeamFoam
-solvers, first, install and load
-[OpenFOAM-10](https://openfoam.org/download/10-ubuntu/), then clone and build
-the laserbeamFoam library:
+OpenFOAM-10 must be available and sourced (the `WM_PROJECT` environment variable
+set) before building. Clone this repository, then use one of the routes below: a
+native OpenFOAM-10 install, a Docker container (workstation), or an Apptainer
+container (HPC). The container routes use the `openfoam/openfoam10-paraview510`
+image.
+
+### Option A — Native OpenFOAM-10
+
+Install OpenFOAM-10 from the
+[openfoam.org packages](https://openfoam.org/download/10-ubuntu/) or by compiling
+the source, source its environment, then build this fork:
 
 ```bash
-git clone https://github.com/micmog/laserbeamFoam.git laserbeamFoam
-./Allwmake -j
+source /opt/openfoam10/etc/bashrc      # path depends on your install
+./Allwmake -j                          # -j uses all cores
 ```
 
-where the `-j` option uses all CPU cores available for building.
+`./Allwclean` cleans the build.
 
-The installation can be tested using the tutorial cases described below.
+### Option B — Docker
 
-### Optional: Installation of the LIGGGHTS® Discrete Element Model Solver
-
-Some of the tutorial cases use a discrete element method (DEM) solver called
- LIGGGHTS to simulate the creation of a powder bed, e.g. see [this powder bed
- fusion tutorial](tutorials/laserbeamFoam/LPBF_small/README.md).
- For these cases, if available, the `liggghts` executable will be used in the
- case pre-processing process.
-
-On Linux, LIGGGHTS® can be installed with
+A convenience function that launches the container with your home directory
+mounted and the user build paths preset (add it to your `~/.bashrc`):
 
 ```bash
-# Install required dependencies
+of10 () {
+    local of10_home="$HOME/.of10-home"
+    mkdir -p "$of10_home"
+    docker rm -f of10 >/dev/null 2>&1
+    docker run -it --name of10 --hostname of10 --user root \
+        -e HOME="$of10_home" -e USER=root -e LOGNAME=root \
+        -e FOAM_USER_APPBIN="$HOME/platforms/linux64GccDPInt32Opt/bin" \
+        -e FOAM_USER_LIBBIN="$HOME/platforms/linux64GccDPInt32Opt/lib" \
+        -v "$HOME":"$HOME" -w "$PWD" \
+        openfoam/openfoam10-paraview510 bash
+}
+```
+
+Then, from the repository directory:
+
+```bash
+of10                                   # drops into the container at the repo
+source /opt/openfoam10/etc/bashrc      # load the OpenFOAM environment
+./Allwmake -j                          # -j uses all cores
+```
+
+`./Allwclean` cleans the build.
+
+### Option C — Apptainer / Singularity (HPC)
+
+On clusters without Docker, the build runs inside an OpenFOAM-10 `.sif` image.
+If you do not have one, build it from the OpenFOAM-10 Docker image:
+
+```bash
+apptainer build ~/openfoam10.sif docker://openfoam/openfoam10-paraview510
+```
+
+A convenience function (add to `~/.bashrc`; replace the `.sif` path with your
+image) that opens an interactive OpenFOAM shell, or runs a command directly:
+
+```bash
+of10 () {
+    if [ "$#" -eq 0 ]; then
+        apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
+            bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && exec bash --noprofile --norc -i"
+    else
+        apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
+            bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && $*"
+    fi
+}
+```
+
+Build the solver from the repository directory:
+
+```bash
+of10 ./Allwmake -j       # or: of10   (interactive), then ./Allwmake -j
+```
+
+Binaries install to `$FOAM_USER_APPBIN`; libraries to `$FOAM_USER_LIBBIN` /
+`$FOAM_LIBBIN`.
+
+### Optional — LIGGGHTS® (DEM) for powder beds
+
+The powder-bed tutorial can regenerate its powder layer with the
+[LIGGGHTS®](https://github.com/CFDEMproject/LIGGGHTS-PUBLIC) discrete element
+solver. It is only needed if you want to rebuild the powder bed — the case ships
+with a pre-generated one.
+
+```bash
+# Linux
 sudo apt update
 sudo apt install -y build-essential cmake gfortran git \
-  libfftw3-dev libjpeg-dev libpng-dev libvtk6-dev \
-  libopenmpi-dev openmpi-bin
-  
-# Clone the LIGGGHTS repository
+  libfftw3-dev libjpeg-dev libpng-dev libvtk6-dev libopenmpi-dev openmpi-bin
+
 git clone https://github.com/CFDEMproject/LIGGGHTS-PUBLIC.git
 cd LIGGGHTS-PUBLIC/src
-
-# Compile
-make auto
-
-# The `liggghts` executable should now be available in this directory
+make auto            # produces the `liggghts` executable
 ```
 
-While on macOS, LIGGGHTS® can be installed with
+Add `liggghts` to your `PATH` (e.g. in `~/.bashrc`):
 
 ```bash
-# Install required dependencies using Homebrew
-brew install cmake gcc openmpi vtk
-  
-# Clone the LIGGGHTS repository
-git clone https://github.com/CFDEMproject/LIGGGHTS-PUBLIC.git
-
-# Compile
-# You may need to update the vtk version in the cmake command to the version
-# installed on your system (i.e., replace 9.4.2_1 with another version)
-cd LIGGGHTS-PUBLIC
-mkdir build
-cd build
-cmake ../src -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DVTK_DIR=/opt/homebrew/Cellar/vtk/9.4.2_1/lib/cmake/vtk-9.4
-make
-
-# The `liggghts` executable should now be available in this directory
+export PATH="$HOME/LIGGGHTS-PUBLIC/src:$PATH"
 ```
 
-For convenience, you can add add `liggghts` to your PATH (e.g. in `~/.bashrc`):
+## Tutorial cases
+
+Two representative cases live under `tutorials/`, one for each NIST AM-Bench pad
+geometry. Both use an 80 µm powder layer on an IN718 plate and the base process
+conditions above with a 0.75 ms track turnaround.
+
+The paper covers six cases in total: the two pad geometries (5 mm × 5 mm and
+1 mm × 5 mm), each at three powder layer thicknesses — bare plate, 80 µm, and
+160 µm. The two cases provided here (both 80 µm) are examples; other conditions
+are obtained by changing the powder layer in the case setup.
+
+### `ch_5x5` — 5 mm × 5 mm pad
+
+- Domain 1.94 × 5.14 × 0.5 mm, mesh 194 × 514 × 50 (~5.0 M cells, ~6 µm).
+- 15 serpentine tracks (of the 45 in the full pad), 4.84 mm laser-on per track.
+- End time 86.88 ms.
+- The powder layer and baseplate are seeded into `alpha.metal` by
+  `setSolidFraction` from `constant/location`.
+
+### `ch_1x5` — 1 mm × 5 mm pad
+
+- Domain 1.84 × 1.14 × 0.6 mm, mesh 184 × 114 × 60 (~1.26 M cells, ~6 µm).
+- 15 serpentine tracks, end time 24.375 ms.
+- The powder layer is generated with LIGGGHTS in `DEM_small/` and seeded into
+  `alpha.metal` by `setSolidFraction` from `constant/location`.
+
+### Running a case
+
+Each case has an `Allrun` (prepare + solve) and an `Allclean` (reset) script:
 
 ```bash
-export PATH="~/LIGGGHTS-PUBLIC/build:$PATH"
-```
-
-where the location should be updated to match the location on your system.
-
-## Tutorial Cases
-
-The tutorial cases can be run with the included `Allrun` scripts, i.e.
-
-```bash
+cd tutorials/ch_5x5
 ./Allrun
 ```
 
-The `Allrun` script prepares the mesh and fields, and runs the solver. Typically
- the following steps are performed:
+`Allrun` performs, in order: copy `initial/` to `0/`, `blockMesh`,
+`setSolidFraction`, `transformPoints` (rotates the mesh so the build axis aligns
+with the laser), `decomposePar`, the parallel solve, `reconstructPar`, and
+`foamToVTK`.
+
+> **Note:** the `Allrun` scripts hard-code a local OpenMPI 5.0.7 and
+> OpenFOAM-10 path and `mpirun -np 80`. Edit the MPI/OpenFOAM paths and the core
+> count near the top/bottom of each `Allrun` to match your machine before
+> running.
+
+To (optionally) regenerate the `ch_1x5` powder bed first:
 
 ```bash
-# Create the 0 directory
-cp -r initial 0
-
-# Create the mesh
-blockMesh
-
-# Set the initial fields
-setFields
-
-# Run the solver in serial
-laserbeamFoam
-
-# Or run the solver in parallel, e.g. on 6 cores
-#decomposePar
-#mpirun -np 6 laserbeamFoam -parallel &> log.laserbeamFoam
+cd tutorials/ch_1x5/DEM_small
+./Allrun        # runs liggghts, copies post/location to ../constant/
 ```
 
-Cases can be cleaned and reset using the included `Allclean` scripts, i.e.
+### Running on an HPC cluster (SLURM)
+
+Each case also ships a `job.sh` SLURM batch script for cluster runs. It performs
+the same setup and solve as `Allrun`, with two conveniences:
+
+- **Restartable** — if `processor0/` already exists it skips meshing and
+  decomposition and continues from the latest time, so a job stopped by the
+  walltime limit can simply be resubmitted.
+- **Auto post-processing** — once the run reaches `endTime` it runs
+  `reconstructPar` and `foamToVTK` automatically.
+
+Edit the `#SBATCH` directives (account, nodes/tasks, walltime, email) and the
+OpenFOAM / MPI paths at the top to match your cluster, then submit:
 
 ```bash
-./Allclean
+cd tutorials/ch_5x5
+sbatch job.sh
 ```
 
-### 2D Plate
+## Contact
 
-In these cases, the penetration rate of an incident laser source is investigated
- based on the angle of incidence of the laser beam. Two cases are presented
- where the beam is perpendicular to the substrate or 45 degrees to the initial
- plate normal.
+For questions about the paper or this code, contact the corresponding author:
 
-### 3D Plate
-
-In this case, the two-dimensional 45-degree example is extended to three dimensions.
-
-### 2D Circular Particles
-
-In this example, a series of circular metallic regions are seeded on top of a
- planar substrate. The laser heat source traverses the domain and melts these
- regions, and their topology evolves accordingly.
-
-### 2D Laser-Powder Bed Fusion
-
-In this example, a two-dimensional domain is seeded with many small powder
- particles with a complex size distribution, representative of that observed in
- the L-PBF manufacturing process. The laser heat source traverses the domain, and
- some particles melt and re-solidify in the heat source's wake.
-
-## Algorithm
-
-Initially, the solver loads the mesh, reads in fields and boundary conditions,
- and selects the turbulence model (if specified). The main solver loop is then
- initiated. First, the time step is dynamically modified to ensure numerical
- stability. Next, the two-phase fluid mixture properties and turbulence
- quantities are updated. The discretised phase-fraction equation is then solved
- for a user-defined number of subtime steps (typically 3) using the
- multidimensional universal limiter with explicit solution solver [MULES](https://openfoam.org/release/2-3-0/multiphase/).
- This solver is included in the OpenFOAM library and performs conservative
- solutions of hyperbolic convective transport equations with defined bounds (0
- and 1 for $α_1$). Once the updated phase field is obtained, the program enters
- the pressure–velocity loop, where p and u are corrected alternatingly. $T$ is
- also solved in this loop so that the buoyancy predictions are correct for the
- $U$ and $p$ fields. Correcting the pressure and velocity fields in the sequence
- is known as pressure implicit with the splitting of operators (PISO). In the
- OpenFOAM environment, PISO is repeated for multiple iterations at each time
- step. This process is called the merged PISO- semi-implicit method for
- pressure-linked equations (SIMPLE) or the pressure-velocity loop (PIMPLE)
- process, where SIMPLE is an iterative pressure–velocity solution algorithm.
- PIMPLE continues for a user-specified number of iterations.
-
-The main solver loop iterates until program termination. A summary of the
- simulation algorithm is presented below:
-
-* `laserbeamFoam` Simulation Algorithm Summary:
-
-  * Initialise simulation data and mesh
-
-  * WHILE $t < t_{\text{end}}$ DO
-
-    1. Update $\Delta t$ for stability
-
-    2. Phase equation sub-cycle
-
-    3. Update interface location for the heat source application
-
-    4. Update fluid properties
-
-    5. Ray-tracing for Heat Source application at the surface
-
-    6. PISO Loop
-
-        1. Form $U$ equation
-
-        2. Energy Transport Loop
-
-            1. Solve $T$ equation  
-            2. Update fluid fraction field  
-            3. Re-evaluate source terms due to latent heat
-
-        3. PISO
-
-            1. Obtain and correct face fluxes  
-            2. Solve $p$ Poisson equation  
-            3. Correct $U$
-
-    7. Write fields
-
-There are no constraints on how the computational domain is discretised.
-
-## Visualising the rays in ParaView
-
-`laserbeamFoam` writes the individual ray beams to `VTK/rays_<TIME_INDEX>.vtk`,
- where `<TIME_INDEX>` is the time-step index, i.e. 1, 2, 3, etc. ParaView
- recognises that these files are in a sequence, so they can all be loaded
- together: `File` -> `Open...` -> Select `rays_..vtk`. As the VTK files do not
- store time-step information, by default, ParaView assumes the time-step size
- for the rays is 1 s; however, you can use the ParaView “Temporal Shift Scale”
- filter on the rays object to sync the ray time with the OpenFOAM model time,
- where the OpenFOAM time-step value (e.g. 1e-5) is used as the `Scale`.
+**Abdullah Al Amin** — Assistant Professor, Department of Mechanical and
+Aerospace Engineering, University of Dayton
+Email: <aamin1@udayton.edu>
+Lab: [SMALT — Smart Manufacturing Advancement and Logistics Technology](http://smalt.dev/)
 
 ## License
 
-OpenFOAM, and by extension, the `laserbeamFoam` application, is licensed free
- and open source only under the [GNU General Public Licence version 3](https://www.gnu.org/licenses/gpl-3.0.en.html).
- One reason for OpenFOAM’s popularity is that its users are granted the freedom
- to modify and redistribute the software and have a right to continued free use
- within the terms of the GPL.
+`laserbeamFoam`, and by extension this fork, is licensed under the
+[GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.en.html),
+following OpenFOAM.
 
-## Acknowledgements
+## Citing
 
-Tom Flint and Joe Robson thank the EPSRC for financial support through the
- associated programme grant LightFORM (EP/R001715/1). Joe Robson thanks the
- Royal Academy of Engineering/DSTL for funding through the RAEng/DSTL Chair in
- Alloys for Extreme Environments.
-
-Philip Cardiff and Gowthaman Parivendhan authors gratefully acknowledge financial
- support from I-Form, funded by Science Foundation Ireland (SFI) Grant Numbers
- 16/RC/3872 and 21/RC/10295 P2, co-funded under the European Regional Development
- Fund and by I-Form industry partners. In addition, Philip Cardiff received
- funding from the European Research Council (ERC) under the European Union’s
- Horizon 2020 research and innovation programme (Grant Agreement No. 101088740),
- and acknowledges financial support from the Irish Research Council through the
- Laureate programme, grant number IRCLA/2017/45, and Bekaert, through the Bekaert
- University Technology Centre (UTC) at University College Dublin
- [www.ucd.ie/bekaert](www.ucd.ie/bekaert).
-
-## Citing This Work
-
-If you use `laserbeamFoam` in your work. Please use the following to cite our work:
+If you use this code, please cite our paper:
 
 ```bibtex
-laserbeamFoam: Laser ray-tracing and thermally induced state transition
-simulation toolkit. TF Flint, JD Robson, G Parivendhan, P Cardiff - SoftwareX,
-2023 - https://doi.org/10.1016/j.softx.2022.101299
+@article{Kumar2026LPBFMeltPool,
+  title   = {Laser Powder Bed Fusion Melt Pool Dynamics for Different Geometric
+             Variations and Powder Layer Heights: High-Fidelity Multiphysics
+             Modeling vs 2025 NIST Experiments},
+  author  = {Kumar, Badhon and Kanak, Rakibul Islam and Sultana, Nishat and
+             Guo, Jiachen and Schrader, Andrew and Liu, Wing Kam and
+             Al Amin, Abdullah},
+  journal = {arXiv preprint arXiv:2604.07359},
+  year    = {2026},
+  doi     = {10.48550/arXiv.2604.07359}
+}
+```
+
+Please also cite the upstream `laserbeamFoam` solver:
+
+```bibtex
+@article{Flint2023laserbeamFoam,
+  title   = {laserbeamFoam: Laser ray-tracing and thermally induced state
+             transition simulation toolkit},
+  author  = {Flint, T. F. and Robson, J. D. and Parivendhan, G. and Cardiff, P.},
+  journal = {SoftwareX},
+  volume  = {21},
+  pages   = {101299},
+  year    = {2023},
+  doi     = {10.1016/j.softx.2022.101299}
+}
 ```
 
 ## References
 
-Flint, T. F., Robson, J. D., Parivendhan, G., & Cardiff, P. (2023).
- laserbeamFoam: Laser ray-tracing and thermally induced state transition
- simulation toolkit. SoftwareX, 21, 101299.
-
-Flint, T. F., Parivendhan, G., Ivankovic, A., Smith, M. C., & Cardiff, P. (2022).
- beamWeldFoam: Numerical simulation of high energy density fusion and
- vapourisation-inducing processes. SoftwareX, 18, 101065.
-
-Flint, T. F., et al. A fundamental analysis of factors affecting chemical
- homogeneity in the laser powder bed fusion process. International Journal of
- Heat and Mass Transfer 194 (2022): 122985.
-
-Flint, T. F., T. Dutilleul, and W. Kyffin. A fundamental investigation into the
- role of beam focal point, and beam divergence, on thermo-capillary stability
- and evolution in electron beam welding applications. International Journal of
- Heat and Mass Transfer 212 (2023): 124262.
-
-Parivendhan, G., Cardiff, P., Flint, T., Tuković, Ž., Obeidi, M., Brabazon, D.,
- Ivanković, A. (2023) A numerical study of processing parameters and their
- effect on the melt-track profile in Laser Powder Bed Fusion processes, Additive
- Manufacturing, 67, 10.1016/j.addma.2023.103482.
-
-## Disclaimer
-
-This offering is not approved or endorsed by OpenCFD Limited, producer and
- distributor of the OpenFOAM software via [www.openfoam.com](https://www.openfoam.com),
- and owner of the OPENFOAM® and OpenCFD® trade marks.
+- Kumar, B., Kanak, R. I., Sultana, N., Guo, J., Schrader, A., Liu, W. K., &
+  Al Amin, A. (2026). *Laser Powder Bed Fusion Melt Pool Dynamics for Different
+  Geometric Variations and Powder Layer Heights: High-Fidelity Multiphysics
+  Modeling vs 2025 NIST Experiments.* arXiv:2604.07359.
+  https://arxiv.org/abs/2604.07359
+- Flint, T. F., Robson, J. D., Parivendhan, G., & Cardiff, P. (2023).
+  *laserbeamFoam: Laser ray-tracing and thermally induced state transition
+  simulation toolkit.* SoftwareX, 21, 101299.
+  https://doi.org/10.1016/j.softx.2022.101299
+- Parivendhan, G., Cardiff, P., Flint, T., et al. (2023). *A numerical study of
+  processing parameters and their effect on the melt-track profile in Laser
+  Powder Bed Fusion processes.* Additive Manufacturing, 67, 103482.
+  https://doi.org/10.1016/j.addma.2023.103482
+- NIST AM-Bench 2025. *AMB2025-06 and AMB2025-07 Benchmark Measurements and
+  Challenge Problems.* Calibration dataset: https://doi.org/10.18434/mds2-3707
+- Deisenroth, D., Mekhontsev, S., & Grantham, S. (2025). *Design and Calibration
+  of the Fundamentals of Laser-Material Interaction (FLaMI) Powder Bed Fusion
+  Testbed at NIST.* NIST AMS 100-66. https://doi.org/10.6028/NIST.AMS.100-66
+- Kloss, C., Goniva, C., Hager, A., Amberger, S., & Pirker, S. (2012). *Models,
+  algorithms and validation for opensource DEM and CFD–DEM.* Progress in
+  Computational Fluid Dynamics, 12(2/3), 140–152.
+  https://doi.org/10.1504/PCFD.2012.047457
 
 ## Acknowledgement
 
-OPENFOAM® is a registered trademark of OpenCFD Limited, producer and distributor
- of the OpenFOAM software via [www.openfoam.com](https://www.openfoam.com).
-
-![visitors](https://visitor-badge.deta.dev/badge?page_id=micmog.LaserbeamFoam)
+This offering is not approved or endorsed by OpenCFD Limited, producer and
+distributor of the OpenFOAM software, and owner of the OPENFOAM® and OpenCFD®
+trade marks. OPENFOAM® is a registered trademark of OpenCFD Limited.

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=bp_5x5
+#SBATCH --job-name=ch_1x5
 #SBATCH --time=96:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=128

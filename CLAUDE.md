@@ -32,7 +32,7 @@ Binaries install to `$FOAM_USER_APPBIN`; libraries to `$FOAM_USER_LIBBIN` /
 ## Running a case
 
 There is no test suite — verification is running tutorial cases under
-`tutorials/` (`ch_5x5`, `ch_1x5_bp`) via their `./Allrun` / `./Allclean`.
+`tutorials/` (`ch_5x5`, `ch_1x5`) via their `./Allrun` / `./Allclean`.
 
 The `Allrun` scripts here are **not** vanilla: they `module purge`, wire up a
 **local OpenMPI 5.0.7** (`$HOME/opt/openmpi-5.0.7`) and a local OpenFOAM-10
@@ -53,7 +53,7 @@ Adjust `-np` and the MPI/OpenFOAM paths to the local machine before running.
 
 ## Architecture
 
-Three build products:
+Two build products:
 
 - **`liblaserHeatSource`** (`src/laserHeatSource/`) — the ray-tracing laser heat
   source. `laserHeatSource::updateDeposition(...)` discretises the Gaussian beam
@@ -73,10 +73,6 @@ Three build products:
   corrector loop (governed by the `MELTING` sub-dict in `fvSolution`, read in
   `readControls.H`). Bundles two local libs it links: `VoFTurbulenceDamping` and
   `incompressibleInterPhaseTransportModel`.
-
-- **`multiComponentlaserbeamFoam`** (`applications/solvers/multiComponentlaserbeamFoam/`)
-  — extension to M-component metallic substrates with Fickian diffusion; bundles
-  its own `multiphaseMixture` lib (`libMClaserbeamFoam`).
 
 Plus the **`setSolidFraction`** utility (`applications/utilities/`) — initialises
 `alpha.metal` from a `locations` file of particle/baseplate positions + radii
@@ -105,5 +101,5 @@ Tutorial cases follow OpenFOAM structure with a couple of local conventions:
 `PowderSim`, and `timeVsLaserPosition`/`timeVsLaserPower` table refs),
 `trackProperties` (`trackDuration`), and phase `physicalProperties.{metal,gas}`;
 `system/` holds `bedPlateDict` (baseplate bounding box for `setSolidFraction`)
-and `setFieldsDict`. `DEM_small/` (in `ch_1x5_bp`) holds the LIGGGHTS input for
+and `setFieldsDict`. `DEM_small/` (in `ch_1x5`) holds the LIGGGHTS input for
 generating the powder bed.
