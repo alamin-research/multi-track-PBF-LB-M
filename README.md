@@ -70,86 +70,151 @@ Beyond the upstream solver, this fork adds per-step **melt tracking** fields
 
 ## Installation
 
-OpenFOAM-10 must be available and sourced (the `WM_PROJECT` environment variable
-set) before building. Clone this repository, then use one of the routes below: a
-native OpenFOAM-10 install, a Docker container (workstation), or an Apptainer
-container (HPC). The container routes use the `openfoam/openfoam10-paraview510`
-image.
+You install **two things**: **OpenFOAM-10** (the CFD platform this code runs on)
+and **this solver** (which you compile on top of OpenFOAM). OpenFOAM-10 comes
+either from a normal install on your machine or from a ready-made container — you
+only ever compile *this* solver.
+
+**Which route should I use?**
+
+- **Option A — Native:** you already have (or can install) OpenFOAM-10 on your
+  own Linux machine.
+- **Option B — Docker:** on a laptop/workstation and you don't want to install
+  OpenFOAM yourself. **Easiest for beginners.**
+- **Option C — Apptainer:** on an HPC cluster where Docker is not allowed.
+
+Everything below assumes a Linux terminal and basic familiarity with `cd`.
+
+### Step 0 — Get the code (all routes)
+
+Clone this repository and move into it. **Every later command is run from inside
+this folder.**
+
+```bash
+git clone https://github.com/alamin-research/multi-track-PBF-LB-M.git
+cd multi-track-PBF-LB-M
+```
 
 ### Option A — Native OpenFOAM-10
 
-Install OpenFOAM-10 from the
-[openfoam.org packages](https://openfoam.org/download/10-ubuntu/) or by compiling
-the source, source its environment, then build this fork:
+1. **Install OpenFOAM-10** if you don't have it, following the official Ubuntu
+   guide: <https://openfoam.org/download/10-ubuntu/>. (Skip this step if it's
+   already installed.)
+2. **Load the OpenFOAM environment.** This makes build commands like `wmake`
+   available in your terminal:
+   ```bash
+   source /opt/openfoam10/etc/bashrc
+   ```
+   The path depends on where OpenFOAM was installed; the line above is the
+   default for the Ubuntu package. Check it worked — this should print `10`:
+   ```bash
+   echo $WM_PROJECT_VERSION
+   ```
+3. **Build the solver** (from the repository folder). `-j` uses all CPU cores;
+   the first build takes a few minutes:
+   ```bash
+   ./Allwmake -j
+   ```
+4. Later, `./Allwclean` removes the build if you want to start over.
+
+### Option B — Docker (laptop / workstation)
+
+Docker runs OpenFOAM-10 inside a container, so you never install OpenFOAM
+yourself.
+
+1. **Install Docker** (Docker Desktop or Docker Engine):
+   <https://docs.docker.com/get-docker/>. Confirm it works:
+   ```bash
+   docker run hello-world
+   ```
+2. **Add this helper function** to the end of your `~/.bashrc`. It starts the
+   OpenFOAM container with your home folder visible inside it:
+   ```bash
+   of10 () {
+       local of10_home="$HOME/.of10-home"
+       mkdir -p "$of10_home"
+       docker rm -f of10 >/dev/null 2>&1
+       docker run -it --name of10 --hostname of10 --user root \
+           -e HOME="$of10_home" -e USER=root -e LOGNAME=root \
+           -e FOAM_USER_APPBIN="$HOME/platforms/linux64GccDPInt32Opt/bin" \
+           -e FOAM_USER_LIBBIN="$HOME/platforms/linux64GccDPInt32Opt/lib" \
+           -v "$HOME":"$HOME" -w "$PWD" \
+           openfoam/openfoam10-paraview510 bash
+   }
+   ```
+3. **Reload your shell** so the new function is available:
+   ```bash
+   source ~/.bashrc
+   ```
+4. **Enter the container** from the repository folder:
+   ```bash
+   of10
+   ```
+   The first time, Docker downloads the image (a few GB) — this happens **once**.
+   Your prompt changes, which means you are now *inside* the container, in the
+   same folder.
+5. **Load OpenFOAM and build** (these run inside the container):
+   ```bash
+   source /opt/openfoam10/etc/bashrc
+   ./Allwmake -j
+   ```
+6. Type `exit` to leave the container. (`./Allwclean`, run inside the container,
+   cleans the build.)
+
+### Option C — Apptainer / Singularity (HPC cluster)
+
+Clusters usually block Docker but provide Apptainer (formerly Singularity). You
+build the OpenFOAM image once as a `.sif` file, then compile inside it.
+
+1. **Load Apptainer** if your cluster uses environment modules (ask your admin;
+   it's often):
+   ```bash
+   module load apptainer
+   ```
+2. **Build the image file** (one time, takes a few minutes):
+   ```bash
+   apptainer build ~/openfoam10.sif docker://openfoam/openfoam10-paraview510
+   ```
+3. **Add this helper function** to your `~/.bashrc` (replace `~/openfoam10.sif`
+   if you saved the image elsewhere). It runs commands inside the image with
+   OpenFOAM already loaded:
+   ```bash
+   of10 () {
+       if [ "$#" -eq 0 ]; then
+           apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
+               bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && exec bash --noprofile --norc -i"
+       else
+           apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
+               bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && $*"
+       fi
+   }
+   ```
+4. **Reload your shell:**
+   ```bash
+   source ~/.bashrc
+   ```
+5. **Build the solver** from the repository folder:
+   ```bash
+   of10 ./Allwmake -j
+   ```
+   (Or run `of10` on its own to get an interactive OpenFOAM shell, then
+   `./Allwmake -j`.)
+
+### Verify the build
+
+In the **same environment you built in** (inside the container for Options B/C),
+check the solver was created:
 
 ```bash
-source /opt/openfoam10/etc/bashrc      # path depends on your install
-./Allwmake -j                          # -j uses all cores
+which laserbeamFoam
 ```
 
-`./Allwclean` cleans the build.
+It should print a path ending in `.../bin/laserbeamFoam`. If it does, you're
+done. If it says "not found", make sure you sourced the OpenFOAM environment
+(`source /opt/openfoam10/etc/bashrc`) in the current terminal.
 
-### Option B — Docker
-
-A convenience function that launches the container with your home directory
-mounted and the user build paths preset (add it to your `~/.bashrc`):
-
-```bash
-of10 () {
-    local of10_home="$HOME/.of10-home"
-    mkdir -p "$of10_home"
-    docker rm -f of10 >/dev/null 2>&1
-    docker run -it --name of10 --hostname of10 --user root \
-        -e HOME="$of10_home" -e USER=root -e LOGNAME=root \
-        -e FOAM_USER_APPBIN="$HOME/platforms/linux64GccDPInt32Opt/bin" \
-        -e FOAM_USER_LIBBIN="$HOME/platforms/linux64GccDPInt32Opt/lib" \
-        -v "$HOME":"$HOME" -w "$PWD" \
-        openfoam/openfoam10-paraview510 bash
-}
-```
-
-Then, from the repository directory:
-
-```bash
-of10                                   # drops into the container at the repo
-source /opt/openfoam10/etc/bashrc      # load the OpenFOAM environment
-./Allwmake -j                          # -j uses all cores
-```
-
-`./Allwclean` cleans the build.
-
-### Option C — Apptainer / Singularity (HPC)
-
-On clusters without Docker, the build runs inside an OpenFOAM-10 `.sif` image.
-If you do not have one, build it from the OpenFOAM-10 Docker image:
-
-```bash
-apptainer build ~/openfoam10.sif docker://openfoam/openfoam10-paraview510
-```
-
-A convenience function (add to `~/.bashrc`; replace the `.sif` path with your
-image) that opens an interactive OpenFOAM shell, or runs a command directly:
-
-```bash
-of10 () {
-    if [ "$#" -eq 0 ]; then
-        apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
-            bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && exec bash --noprofile --norc -i"
-    else
-        apptainer exec --cleanenv --env USER="$USER" ~/openfoam10.sif \
-            bash --noprofile --norc -lc "source /opt/openfoam10/etc/bashrc && $*"
-    fi
-}
-```
-
-Build the solver from the repository directory:
-
-```bash
-of10 ./Allwmake -j       # or: of10   (interactive), then ./Allwmake -j
-```
-
-Binaries install to `$FOAM_USER_APPBIN`; libraries to `$FOAM_USER_LIBBIN` /
-`$FOAM_LIBBIN`.
+Compiled programs install to `$FOAM_USER_APPBIN`; libraries to
+`$FOAM_USER_LIBBIN` / `$FOAM_LIBBIN`.
 
 ### Optional — LIGGGHTS® (DEM) for powder beds
 
@@ -188,7 +253,7 @@ are obtained by changing the powder layer in the case setup.
 
 ### `ch_5x5` — 5 mm × 5 mm pad
 
-- Domain 1.94 × 5.14 × 0.5 mm, mesh 194 × 514 × 50 (~5.0 M cells, ~6 µm).
+- Domain 1.94 × 5.14 × 0.5 mm, mesh 194 × 514 × 50 (~5.0 M cells, 10 µm).
 - 15 serpentine tracks (of the 45 in the full pad), 4.84 mm laser-on per track.
 - End time 86.88 ms.
 - The powder layer and baseplate are seeded into `alpha.metal` by
@@ -196,7 +261,7 @@ are obtained by changing the powder layer in the case setup.
 
 ### `ch_1x5` — 1 mm × 5 mm pad
 
-- Domain 1.84 × 1.14 × 0.6 mm, mesh 184 × 114 × 60 (~1.26 M cells, ~6 µm).
+- Domain 1.84 × 1.14 × 0.6 mm, mesh 184 × 114 × 60 (~1.26 M cells, 10 µm).
 - 15 serpentine tracks, end time 24.375 ms.
 - The powder layer is generated with LIGGGHTS in `DEM_small/` and seeded into
   `alpha.metal` by `setSolidFraction` from `constant/location`.

@@ -30,10 +30,10 @@ vertices
 
 blocks
 (
-    // ≈6 µm resolution:
-    //  1.00 mm / 168 ≃ 5.95 µm
-    //  2.00 mm / 336 ≃ 5.95 µm
-    //  0.50 mm / 84  ≃ 5.95 µm
+    // 10 µm resolution:
+    //  1.94 mm / 194 = 10 µm
+    //  5.14 mm / 514 = 10 µm
+    //  0.50 mm / 50  = 10 µm
     hex (0 1 2 3 4 5 6 7) (194 514 50) simpleGrading (1 1 1)
 );
 
