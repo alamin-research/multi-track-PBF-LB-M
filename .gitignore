@@ -76,3 +76,8 @@ linuxming*/
 SiCortex*Gcc*/
 solaris*Gcc*/
 SunOS*Gcc*/
+
+# editor / tool settings
+.vscode/
+.idea/
+.claude/
